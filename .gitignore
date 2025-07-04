@@ -4,7 +4,10 @@ credentials
 
 vprofile-rearch-key-pair.pem
 
-mysql-client-key-pair.pem
+*.pem
 
 ansible
-Jenkinsfile
+
+userdata/nexus-setup.sh
+userdata/sonar-analysis-properties
+userdata/sonar-setup.sh
