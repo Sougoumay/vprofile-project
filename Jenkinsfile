@@ -1,103 +1,97 @@
-def COLOR_MAP = [
-    'SUCCESS': 'good',
-    'FAILURE' : 'danger'
-]
-
 pipeline {
     agent any
-
     tools {
         maven "MAVEN3.9"
         jdk "JDK17"
     }
 
-    stages {
+
+    environment {
+        registryCredential = 'ecr:us-east-1:awscreds'
+        appRegistry = "481665125320.dkr.ecr.us-east-1.amazonaws.com/vprofileappimg"
+        vprofileRegistry = "https://481665125320.dkr.ecr.us-east-1.amazonaws.com"
+    }
+  stages {
+
         stage('Fetch code') {
             steps {
-                git branch: 'jenkins_CI',
-                url: 'https://github.com/Sougoumay/vprofile-project'
+               git branch: 'docker', url: 'https://github.com/Sougoumay/vprofile-project'
             }
+
         }
 
-        stage('Build') {
-            steps {
-                sh 'mvn install -DskipTests'
+
+        stage('Build'){
+            steps{
+               sh 'mvn install -DskipTests'
             }
+
             post {
-                success {
-                    echo 'Archiving artifact'
-                    archiveArtifacts artifacts: '**/*.war'
-
-                }
+               success {
+                  echo 'Now Archiving it...'
+                  archiveArtifacts artifacts: '**/target/*.war'
+               }
             }
         }
 
-         stage('Unit Test') {
-            steps {
+        stage('UNIT TEST') {
+            steps{
                 sh 'mvn test'
             }
-         }
+        }
 
-         stage('Checkstyle Analysis') {
-            steps {
+        stage('Checkstyle Analysis') {
+            steps{
                 sh 'mvn checkstyle:checkstyle'
             }
-         }
+        }
 
-         stage('Sonar code Analysis') {
+        stage("Sonar Code Analysis") {
             environment {
-                scannerHome = tool 'Sonar6.2'
+                scannerHome = tool 'sonar6.2'
             }
             steps {
-                withSonarQubeEnv('sonarserver') {
-                    sh '''${scannerHome}/bin/sonar-scanner -Dsonar.projectKey=vprofile \
-                   -Dsonar.projectName=vprofile-repo \
+              withSonarQubeEnv('sonarserver') {
+                sh '''${scannerHome}/bin/sonar-scanner -Dsonar.projectKey=vprofile \
+                   -Dsonar.projectName=vprofile \
                    -Dsonar.projectVersion=1.0 \
                    -Dsonar.sources=src/ \
                    -Dsonar.java.binaries=target/test-classes/com/visualpathit/account/controllerTest/ \
                    -Dsonar.junit.reportsPath=target/surefire-reports/ \
                    -Dsonar.jacoco.reportsPath=target/jacoco.exec \
                    -Dsonar.java.checkstyle.reportPaths=target/checkstyle-result.xml'''
-                }
+              }
             }
-         }
-
-         stage("Quality Gate") {
-             steps {
-               timeout(time: 1, unit: 'HOURS') {
-                 waitForQualityGate abortPipeline: true
-               }
-             }
-         }
-
-         stage('Upload Artifact') {
-             steps {
-                 nexusArtifactUploader(
-                     nexusVersion: 'nexus3',
-                     protocol: 'http',
-                     nexusUrl: '172.31.91.190:8081',
-                     groupId: 'QA',
-                     version: "${env.BUILD_ID}-${env.BUILD_TIMESTAMP}",
-                     repository: 'vprofile-repo',
-                     credentialsId: 'nexuslogin',
-                     artifacts: [
-                         [artifactId: 'vproapp',
-                          classifier: '',
-                          file: 'target/vprofile-v2.war',
-                          type: 'war'
-                         ]
-                     ]
-                 )
-             }
-         }
-    }
-
-    post {
-        always {
-            echo 'Slack Notification'
-            slackSend channel: '#devopscicd',
-            color : COLOR_MAP[currentBuild.currentResult],
-            message: "Find Status of Pipeline:- ${currentBuild.currentResult}:* Job ${env.JOB_NAME} ${env.BUILD_NUMBER} \n For more information go to url ${BUILD_URL}"
         }
-    }
+
+        stage("Quality Gate") {
+            steps {
+              timeout(time: 1, unit: 'HOURS') {
+                waitForQualityGate abortPipeline: true
+              }
+            }
+          }
+
+        stage('Build App Image') {
+          steps {
+
+            script {
+                dockerImage = docker.build( appRegistry + ":$BUILD_NUMBER", "./Docker-files/app/multistage/")
+                }
+          }
+
+        }
+
+        stage('Upload App Image') {
+          steps{
+            script {
+              docker.withRegistry( vprofileRegistry, registryCredential ) {
+                dockerImage.push("$BUILD_NUMBER")
+                dockerImage.push('latest')
+              }
+            }
+          }
+        }
+
+  }
 }
