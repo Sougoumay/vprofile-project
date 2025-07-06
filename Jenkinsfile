@@ -10,6 +10,8 @@ pipeline {
         registryCredential = 'ecr:us-east-1:awscreds'
         appRegistry = "481665125320.dkr.ecr.us-east-1.amazonaws.com/vprofileappimg"
         vprofileRegistry = "https://481665125320.dkr.ecr.us-east-1.amazonaws.com"
+        cluster = "vprofile-bis"
+        service = "vprofileappsvc"
     }
   stages {
 
@@ -48,7 +50,7 @@ pipeline {
 
         stage("Sonar Code Analysis") {
             environment {
-                scannerHome = tool 'sonar6.2'
+                scannerHome = tool 'Sonar6.2'
             }
             steps {
               withSonarQubeEnv('sonarserver') {
@@ -91,6 +93,20 @@ pipeline {
               }
             }
           }
+        }
+
+        stage('Deploy to ecs') {
+            steps {
+                withAWS('credentials': 'awscreds', region: 'us-east-1') {
+                    sh 'aws ecs update-service --cluster ${cluster} --service ${service} --force-new-deployment'
+                }
+            }
+        }
+
+        stage('Remove Container Images') {
+            steps {
+                sh 'docker rmi -f $(docker images -a -q)'
+            }
         }
 
   }
