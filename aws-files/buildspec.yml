@@ -1,0 +1,39 @@
+version: 0.2
+
+  #env:
+  #variables:
+  # key: "value"
+  # key: "value"
+  #parameter-store:
+  # key: "value"
+# key: "value"
+
+phases:
+  install:
+    runtime-versions:
+      java: corretto17
+  pre_build:
+    commands:
+      - echo "Pre-build phase started on `date`"
+      - apt-get update
+      - apt-get install -y jq
+      - echo "Maven version check:"
+      - mvn --version
+      - echo "Conf de la BDD"
+      - sed -i 's/jdbc.password=admin123/jdbc.password=AutoGen123$/' src/main/resources/application.properties
+      - sed -i 's/jdbc.username=admin/jdbc.username=admin/' src/main/resources/application.properties
+      - sed -i 's/db01:3306/vprofile-rds-aws-ci-cd.c6doiawyq7fz.us-east-1.rds.amazonaws.com:3306/' src/main/resources/application.properties
+  build:
+    commands:
+      - echo "Build phase started on `date`"
+      - mvn clean compile
+      - mvn install
+  post_build:
+    commands:
+      - echo "Post-build phase started on `date`"
+      - mvn package
+      - echo "Build completed on `date`"
+artifacts:
+  files:
+    - '**/*'
+  base-directory: 'target/vprofile-v2'
