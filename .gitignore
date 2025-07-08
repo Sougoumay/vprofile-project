@@ -2,9 +2,5 @@
 
 credentials
 
-vprofile-rearch-key-pair.pem
-
-mysql-client-key-pair.pem
-
-ansible
-Jenkinsfile
+*.pem
+*.docx
